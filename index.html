@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Esquí amb Webcam - Multijugador</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/ml5@0.12.2/dist/ml5.min.js" type="text/javascript"></script>
+    
+    <style>
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #f8fafc; font-family: 'Inter', sans-serif; }
+        #gameCanvas { display: block; width: 100%; height: 100%; }
+        #webcam-container { transform: scaleX(-1); }
+        .glass-panel { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(12px); box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1); border: 1px solid rgba(255,255,255,0.2); }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body class="relative">
+
+    <canvas id="gameCanvas"></canvas>
+
+    <!-- UI In-Game -->
+    <div id="ui-layer" class="absolute top-0 left-0 w-full h-full pointer-events-none flex flex-col justify-between p-6 z-10 hidden">
+        <div class="flex justify-between items-start">
+            <div class="glass-panel rounded-2xl p-4 pointer-events-auto">
+                <h1 class="text-3xl font-black text-blue-600 flex items-center gap-2">🎿 NEU-IA</h1>
+                <p class="text-sm text-gray-600 font-medium mt-1">Sala: <span id="room-display" class="font-bold text-blue-500">Local</span></p>
+            </div>
+            
+            <div class="flex gap-4">
+                <div id="remote-score-panel" class="glass-panel rounded-2xl p-4 text-center pointer-events-auto min-w-[100px] hidden border-b-4 border-red-500">
+                    <p class="text-xs text-gray-500 font-bold uppercase tracking-wider">Rival</p>
+                    <p id="remoteScoreDisplay" class="text-3xl font-black text-red-600">0</p>
+                </div>
+                <div class="glass-panel rounded-2xl p-4 text-center pointer-events-auto min-w-[130px] border-b-4 border-blue-500">
+                    <p class="text-sm text-gray-500 font-bold uppercase tracking-wider">Tu (Punts)</p>
+                    <p id="scoreDisplay" class="text-5xl font-black text-blue-600">0</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="glass-panel p-3 rounded-2xl w-64 pointer-events-auto self-start relative">
+            <p class="text-sm font-bold text-center text-gray-500 mb-2">Càmera (Tu)</p>
+            <div id="webcam-container" class="rounded-xl overflow-hidden bg-black aspect-video relative shadow-inner">
+                <video id="webcam" autoplay playsinline class="w-full h-full object-cover"></video>
+                <div id="nose-dot" class="absolute w-4 h-4 bg-green-400 border-2 border-white rounded-full hidden shadow-lg" style="transform: translate(-50%, -50%);"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Menú Principal -->
+    <div id="menu-overlay" class="absolute top-0 left-0 w-full h-full bg-slate-900/80 backdrop-blur-md flex items-center justify-center z-50">
+        <div class="bg-white p-10 rounded-3xl shadow-2xl text-center max-w-lg w-full mx-4 relative overflow-hidden">
+            <div id="error-msg" class="absolute top-0 left-0 w-full bg-red-500 text-white text-sm font-bold py-2 hidden"></div>
+            
+            <h2 class="text-5xl font-black text-blue-600 mb-2">Esquí amb IA</h2>
+            <p id="statusMsg" class="text-sm text-blue-500 font-bold animate-pulse mb-8">Carregant Intel·ligència Artificial...</p>
+            
+            <div id="mode-selection" class="space-y-4 opacity-50 pointer-events-none transition-opacity duration-300">
+                <button id="btn-singleplayer" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold py-4 px-8 rounded-2xl transition-all text-xl border-2 border-slate-200">
+                    👤 Un Jugador
+                </button>
+                <button id="btn-multiplayer" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 px-8 rounded-2xl shadow-xl transition-all text-xl">
+                    🌐 Multijugador Online
+                </button>
+            </div>
+
+            <div id="room-selection" class="hidden space-y-4 mt-4">
+                <p class="text-gray-600 text-sm font-medium">Introdueix un codi de sala per jugar amb un amic:</p>
+                <input type="text" id="room-input" placeholder="Ex: PISTA1" class="w-full text-center font-bold text-2xl p-4 rounded-xl border-2 border-slate-200 uppercase focus:border-blue-500 focus:outline-none">
+                
+                <div class="bg-blue-50 border border-blue-100 p-3 rounded-xl text-left">
+                    <p class="text-xs text-blue-800 font-bold mb-1">💡 Com funciona?</p>
+                    <p class="text-xs text-blue-600">Comparteix el joc amb un amic. Tots dos heu d'escriure <strong>el mateix codi</strong> aquí dalt per trobar-vos a la mateixa pista i competir en temps real.</p>
+                </div>
+
+                <button id="btn-join-room" class="w-full bg-green-500 hover:bg-green-400 text-white font-bold py-4 px-8 rounded-2xl shadow-xl transition-all text-xl">
+                    Unir-se a la Sala
+                </button>
+                <button id="btn-back" class="text-slate-400 font-bold mt-2 hover:text-slate-600">← Tornar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- FIREBASE & GAME LOGIC -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Constants & DOM Elements
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const video = document.getElementById('webcam');
+        const noseDot = document.getElementById('nose-dot');
+        
+        const menuOverlay = document.getElementById('menu-overlay');
+        const uiLayer = document.getElementById('ui-layer');
+        const statusMsg = document.getElementById('statusMsg');
+        const modeSelection = document.getElementById('mode-selection');
+        const roomSelection = document.getElementById('room-selection');
+        const errorMsg = document.getElementById('error-msg');
+        
+        const btnSingle = document.getElementById('btn-singleplayer');
+        const btnMulti = document.getElementById('btn-multiplayer');
+        const btnJoin = document.getElementById('btn-join-room');
+        const btnBack = document.getElementById('btn-back');
+        const roomInput = document.getElementById('room-input');
+        
+        const scoreDisplay = document.getElementById('scoreDisplay');
+        const remoteScoreDisplay = document.getElementById('remoteScoreDisplay');
+        const remoteScorePanel = document.getElementById('remote-score-panel');
+        const roomDisplay = document.getElementById('room-display');
+
+        // Firebase Vars
+        let db, auth, user;
+        let isMultiplayer = false;
+        let currentRoomId = null;
+        let myPlayerKey = null; // 'p1' o 'p2'
+        let remotePlayerKey = null;
+        let syncInterval = null;
+        let unsubscribeSnapshot = null;
+        
+        // Setup environment config
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'esqui-webcam-ai';
+        const hasFirebaseConfig = typeof __firebase_config !== 'undefined';
+
+        // Game Vars
+        let isPlaying = false;
+        let score = 0;
+        let gameSpeed = 8;
+        let animationFrameId;
+        let lastTime = 0;
+        let obstacleTimer = 0;
+        let videoW = 320, videoH = 240, videoReady = false;
+
+        // Jugador Local (Blau)
+        let localPlayer = {
+            x: window.innerWidth / 2,
+            y: window.innerHeight - 120,
+            size: 55,
+            targetX: window.innerWidth / 2,
+            speed: 0.15,
+            tilt: 0,
+            colorBase: '#1e3a8a', // Blau fosc
+            colorArms: '#3b82f6'  // Blau clar
+        };
+
+        // Jugador Remot (Vermell)
+        let remotePlayer = {
+            active: false,
+            x: window.innerWidth / 2,
+            y: window.innerHeight - 120,
+            targetX: window.innerWidth / 2,
+            score: 0,
+            tilt: 0,
+            colorBase: '#7f1d1d', // Vermell fosc
+            colorArms: '#ef4444'  // Vermell clar
+        };
+
+        let obstacles = [];
+        const EMOJIS = ['🌲', '🌲', '🌲', '🪨', '⛄'];
+        let snowLines = [];
+
+        // Generació procedural de neu
+        for(let i = 0; i < 50; i++) {
+            snowLines.push({
+                x: Math.random() * window.innerWidth,
+                y: Math.random() * window.innerHeight,
+                length: 15 + Math.random() * 35,
+                speedMultiplier: 1.0 + Math.random() * 0.6
+            });
+        }
+
+        // Initialize Firebase
+        async function initFirebase() {
+            if (!hasFirebaseConfig) return false;
+            try {
+                const config = JSON.parse(__firebase_config);
+                const app = initializeApp(config);
+                auth = getAuth(app);
+                db = getFirestore(app);
+
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    const cred = await signInWithCustomToken(auth, __initial_auth_token);
+                    user = cred.user;
+                } else {
+                    const cred = await signInAnonymously(auth);
+                    user = cred.user;
+                }
+                return true;
+            } catch (e) {
+                console.error("Error Firebase:", e);
+                return false;
+            }
+        }
+
+        // Mostrar errors per UI (sense alert)
+        function showError(msg) {
+            errorMsg.innerText = msg;
+            errorMsg.classList.remove('hidden');
+            setTimeout(() => errorMsg.classList.add('hidden'), 4000);
+        }
+
+        // Redimensionar Canvas
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            localPlayer.y = canvas.height - 120;
+            remotePlayer.y = canvas.height - 120;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        // ---------------- AI & WEBCAM ----------------
+        let poseNet;
+        let poses = [];
+
+        async function setupCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 320, height: 240, facingMode: 'user' }, audio: false });
+                video.srcObject = stream;
+                return new Promise((resolve) => {
+                    video.onloadedmetadata = () => {
+                        videoW = video.videoWidth; videoH = video.videoHeight;
+                        video.width = videoW; video.height = videoH;
+                        videoReady = true; resolve();
+                    };
+                });
+            } catch (err) {
+                showError("Sense accés a la càmera. No es pot jugar.");
+            }
+        }
+
+        function initAI() {
+            setupCamera().then(() => {
+                poseNet = ml5.poseNet(video, () => {
+                    statusMsg.innerText = "IA preparada! ✅";
+                    statusMsg.classList.replace('text-blue-500', 'text-green-500');
+                    statusMsg.classList.remove('animate-pulse');
+                    modeSelection.classList.remove('opacity-50', 'pointer-events-none');
+                });
+                poseNet.on('pose', (results) => { poses = results; processPose(); });
+            });
+        }
+
+        function processPose() {
+            if (!videoReady || poses.length === 0) { noseDot.style.display = 'none'; return; }
+            const nose = poses[0].pose.nose;
+            if (nose.confidence > 0.15) {
+                noseDot.style.display = 'block';
+                noseDot.style.left = `${(nose.x / videoW) * 100}%`;
+                noseDot.style.top = `${(nose.y / videoH) * 100}%`;
+                
+                // Mapeig Mirall
+                let rawTarget = canvas.width - (nose.x / videoW) * canvas.width;
+                localPlayer.targetX = Math.max(localPlayer.size, Math.min(canvas.width - localPlayer.size, rawTarget));
+            } else {
+                noseDot.style.display = 'none';
+            }
+        }
+
+        // ---------------- GAME LOGIC ----------------
+        function spawnObstacle() {
+            const margin = 60;
+            const x = margin + Math.random() * (canvas.width - margin * 2);
+            const size = 40 + Math.random() * 25; 
+            obstacles.push({ x: x, y: -50, size: size, emoji: EMOJIS[Math.floor(Math.random() * EMOJIS.length)], passed: false });
+        }
+
+        function drawSkier(playerObj) {
+            ctx.save();
+            ctx.translate(playerObj.x, playerObj.y);
+            ctx.rotate(playerObj.tilt); 
+            
+            // Esquís
+            ctx.strokeStyle = '#333'; 
+            ctx.lineWidth = 5;
+            ctx.lineCap = 'round';
+            ctx.beginPath(); ctx.moveTo(-14, -30); ctx.lineTo(-14, 30); ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(14, -30); ctx.lineTo(14, 30); ctx.stroke();
+
+            // Braços
+            ctx.strokeStyle = playerObj.colorArms;
+            ctx.lineWidth = 7;
+            ctx.beginPath(); ctx.moveTo(-22, 5); ctx.lineTo(22, 5); ctx.stroke();
+
+            // Cos
+            ctx.fillStyle = playerObj.colorBase;
+            ctx.beginPath(); ctx.ellipse(0, 0, 16, 22, 0, 0, Math.PI * 2); ctx.fill();
+
+            // Cap
+            ctx.fillStyle = '#f8fafc'; 
+            ctx.beginPath(); ctx.arc(0, -12, 12, 0, Math.PI * 2); ctx.fill();
+            
+            // Ulleres
+            ctx.fillStyle = '#f97316'; 
+            ctx.beginPath(); ctx.roundRect(-7, -18, 14, 7, 3); ctx.fill();
+            
+            ctx.restore();
+        }
+
+        function gameOver() {
+            isPlaying = false;
+            cleanMultiplayer();
+            menuOverlay.classList.remove('hidden');
+            modeSelection.classList.remove('hidden');
+            roomSelection.classList.add('hidden');
+            statusMsg.innerText = `Has xocat! Puntuació: ${score}`;
+            statusMsg.classList.replace('text-green-500', 'text-red-500');
+            uiLayer.classList.add('hidden');
+        }
+
+        function gameLoop(timestamp) {
+            if (!isPlaying) return;
+            if (!lastTime) lastTime = timestamp;
+            let dt = timestamp - lastTime;
+            lastTime = timestamp;
+            if (dt > 100) dt = 16.66; 
+            let timeScale = dt / 16.66; 
+
+            // Fons
+            ctx.fillStyle = '#f8fafc'; 
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Neu
+            ctx.fillStyle = '#bae6fd'; 
+            for (let i = 0; i < snowLines.length; i++) {
+                let flake = snowLines[i];
+                flake.y += gameSpeed * flake.speedMultiplier * timeScale * 2;
+                if (flake.y > canvas.height) { flake.y = -flake.length; flake.x = Math.random() * canvas.width; }
+                ctx.fillRect(flake.x, flake.y, 3, flake.length);
+            }
+
+            // Moviment Local (LERP)
+            const moveDelta = (localPlayer.targetX - localPlayer.x);
+            localPlayer.x += moveDelta * localPlayer.speed * timeScale;
+            localPlayer.tilt = Math.max(-0.4, Math.min(0.4, moveDelta * 0.015));
+
+            // Moviment Remot (LERP per suavitzar)
+            if (isMultiplayer && remotePlayer.active) {
+                const remDelta = (remotePlayer.targetX - remotePlayer.x);
+                remotePlayer.x += remDelta * 0.1 * timeScale;
+                remotePlayer.tilt = Math.max(-0.4, Math.min(0.4, remDelta * 0.015));
+            }
+
+            // Obstacles
+            for (let i = obstacles.length - 1; i >= 0; i--) {
+                let obs = obstacles[i];
+                obs.y += gameSpeed * timeScale; 
+
+                ctx.font = `${obs.size}px Arial`;
+                ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillText(obs.emoji, obs.x, obs.y);
+
+                // Col·lisió local
+                const dx = localPlayer.x - obs.x;
+                const dy = localPlayer.y - obs.y;
+                if (Math.sqrt(dx * dx + dy * dy) < (localPlayer.size/2 + obs.size/2 - 15)) {
+                    gameOver(); return;
+                }
+
+                if (!obs.passed && obs.y > localPlayer.y + 20) {
+                    obs.passed = true;
+                    score += 10;
+                    scoreDisplay.innerText = score;
+                    if (score % 100 === 0 && gameSpeed < 20) gameSpeed += 0.8;
+                }
+                if (obs.y > canvas.height + 50) obstacles.splice(i, 1);
+            }
+
+            obstacleTimer += dt;
+            if (obstacleTimer > Math.max(300, 1000 - (gameSpeed * 30))) {
+                spawnObstacle(); obstacleTimer = 0;
+            }
+
+            // Dibuixar Jugadors
+            if (isMultiplayer && remotePlayer.active) drawSkier(remotePlayer); // Dibuixem el rival primer (per sota)
+            drawSkier(localPlayer); // Dibuixem el local per sobre
+
+            animationFrameId = requestAnimationFrame(gameLoop);
+        }
+
+        // ---------------- MULTIPLAYER SYNC ----------------
+        async function joinRoom(roomId) {
+            if (!user) { showError("Error d'autenticació"); return; }
+            
+            const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomId);
+            
+            try {
+                const snap = await getDoc(roomRef);
+                if (!snap.exists()) {
+                    // Sóc el P1 (Amfitrió)
+                    myPlayerKey = 'p1'; remotePlayerKey = 'p2';
+                    await setDoc(roomRef, {
+                        p1: { targetX: 0.5, score: 0 },
+                        p2: null,
+                        createdAt: Date.now()
+                    });
+                } else {
+                    // Sóc el P2 (Convidat)
+                    myPlayerKey = 'p2'; remotePlayerKey = 'p1';
+                    await updateDoc(roomRef, {
+                        p2: { targetX: 0.5, score: 0 }
+                    });
+                }
+
+                currentRoomId = roomId;
+                roomDisplay.innerText = roomId;
+                remoteScorePanel.classList.remove('hidden');
+                
+                // Escoltar canvis del rival
+                unsubscribeSnapshot = onSnapshot(roomRef, (docSnap) => {
+                    if (!docSnap.exists()) return;
+                    const data = docSnap.data();
+                    const rivalData = data[remotePlayerKey];
+                    
+                    if (rivalData) {
+                        remotePlayer.active = true;
+                        // Rebem posició relativa (0 a 1) i la convertim a píxels locals
+                        remotePlayer.targetX = rivalData.targetX * canvas.width;
+                        if (rivalData.score !== remotePlayer.score) {
+                            remotePlayer.score = rivalData.score;
+                            remoteScoreDisplay.innerText = remotePlayer.score;
+                        }
+                    } else {
+                        remotePlayer.active = false;
+                    }
+                }, (error) => {
+                    console.error("Error sincronització:", error);
+                });
+
+                // Bucle d'enviament de dades locals (10 cops per segon per no saturar DB)
+                syncInterval = setInterval(async () => {
+                    if (!isPlaying) return;
+                    try {
+                        // Enviem posició relativa (0 a 1) perquè funcioni entre pantalles de mides diferents
+                        const relativeX = localPlayer.targetX / canvas.width;
+                        await updateDoc(roomRef, {
+                            [`${myPlayerKey}.targetX`]: relativeX,
+                            [`${myPlayerKey}.score`]: score
+                        });
+                    } catch(e){}
+                }, 100);
+
+                startGame(true);
+
+            } catch (e) {
+                showError("No s'ha pogut connectar a la sala.");
+                console.error(e);
+            }
+        }
+
+        function cleanMultiplayer() {
+            if (syncInterval) clearInterval(syncInterval);
+            if (unsubscribeSnapshot) unsubscribeSnapshot();
+            isMultiplayer = false;
+            remotePlayer.active = false;
+        }
+
+        // ---------------- CONTROLS UI ----------------
+        function startGame(multi = false) {
+            score = 0; gameSpeed = 8; obstacles = []; lastTime = 0; obstacleTimer = 0;
+            localPlayer.x = canvas.width / 2; localPlayer.targetX = canvas.width / 2;
+            scoreDisplay.innerText = "0";
+            
+            isMultiplayer = multi;
+            if (!multi) {
+                roomDisplay.innerText = "Local";
+                remoteScorePanel.classList.add('hidden');
+            }
+
+            menuOverlay.classList.add('hidden');
+            uiLayer.classList.remove('hidden');
+            isPlaying = true;
+            
+            if (animationFrameId) cancelAnimationFrame(animationFrameId);
+            animationFrameId = requestAnimationFrame(gameLoop);
+        }
+
+        btnSingle.addEventListener('click', () => startGame(false));
+        
+        btnMulti.addEventListener('click', async () => {
+            if (!hasFirebaseConfig) {
+                showError("El mode multijugador no està configurat en aquest entorn.");
+                return;
+            }
+            const ok = await initFirebase();
+            if (ok) {
+                modeSelection.classList.add('hidden');
+                roomSelection.classList.remove('hidden');
+            } else {
+                showError("No s'ha pogut inicialitzar el servidor.");
+            }
+        });
+
+        btnBack.addEventListener('click', () => {
+            roomSelection.classList.add('hidden');
+            modeSelection.classList.remove('hidden');
+        });
+
+        btnJoin.addEventListener('click', () => {
+            const roomCode = roomInput.value.trim().toUpperCase();
+            if (roomCode.length > 2) {
+                btnJoin.innerText = "Connectant...";
+                joinRoom(roomCode);
+            } else {
+                showError("El codi ha de tenir més de 2 lletres.");
+            }
+        });
+
+        // Iniciar IA a la càrrega
+        window.onload = initAI;
+
+    </script>
+</body>
+</html>
