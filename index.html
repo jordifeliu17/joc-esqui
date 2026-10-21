@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Esqu铆 amb Webcam - Multijugador</title>
+    <title>Esquí amb Webcam - Multijugador</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Utilitzem ml5.js v0.12.2 (PoseNet) que 茅s molt estable per a web -->
+    <!-- Utilitzem ml5.js v0.12.2 (PoseNet) que és molt estable per a web -->
     <script src="https://unpkg.com/ml5@0.12.2/dist/ml5.min.js" type="text/javascript"></script>
     
     <style>
@@ -20,21 +20,21 @@
 
     <canvas id="gameCanvas"></canvas>
 
-    <!-- UI In-Game (Marcs de puntuaci贸 i c脿mera) -->
+    <!-- UI In-Game (Marcs de puntuació i càmera) -->
     <div id="ui-layer" class="absolute top-0 left-0 w-full h-full pointer-events-none flex flex-col justify-between p-6 z-10 hidden">
         <div class="flex justify-between items-start">
             <div class="glass-panel rounded-2xl p-4 pointer-events-auto">
-                <h1 class="text-3xl font-black text-blue-600 flex items-center gap-2">馃幙 NEU-IA</h1>
+                <h1 class="text-3xl font-black text-blue-600 flex items-center gap-2">🎿 NEU-IA</h1>
                 <p class="text-sm text-gray-600 font-medium mt-1">Sala: <span id="room-display" class="font-bold text-blue-500">Local</span></p>
             </div>
             
             <div class="flex gap-4">
-                <!-- Puntuaci贸 del Rival (Nom茅s visible en Multijugador) -->
+                <!-- Puntuació del Rival (Només visible en Multijugador) -->
                 <div id="remote-score-panel" class="glass-panel rounded-2xl p-4 text-center pointer-events-auto min-w-[100px] hidden border-b-4 border-red-500">
                     <p class="text-xs text-gray-500 font-bold uppercase tracking-wider">Rival</p>
                     <p id="remoteScoreDisplay" class="text-3xl font-black text-red-600">0</p>
                 </div>
-                <!-- La teva puntuaci贸 -->
+                <!-- La teva puntuació -->
                 <div class="glass-panel rounded-2xl p-4 text-center pointer-events-auto min-w-[130px] border-b-4 border-blue-500">
                     <p class="text-sm text-gray-500 font-bold uppercase tracking-wider">Tu (Punts)</p>
                     <p id="scoreDisplay" class="text-5xl font-black text-blue-600">0</p>
@@ -42,9 +42,9 @@
             </div>
         </div>
 
-        <!-- Previsualitzaci贸 de la C脿mera -->
+        <!-- Previsualització de la Càmera -->
         <div class="glass-panel p-3 rounded-2xl w-64 pointer-events-auto self-start relative">
-            <p class="text-sm font-bold text-center text-gray-500 mb-2">C脿mera (Tu)</p>
+            <p class="text-sm font-bold text-center text-gray-500 mb-2">Càmera (Tu)</p>
             <div id="webcam-container" class="rounded-xl overflow-hidden bg-black aspect-video relative shadow-inner">
                 <video id="webcam" autoplay playsinline class="w-full h-full object-cover"></video>
                 <!-- Punt verd que segueix el nas -->
@@ -53,50 +53,50 @@
         </div>
     </div>
 
-    <!-- Men煤 Principal -->
+    <!-- Menú Principal -->
     <div id="menu-overlay" class="absolute top-0 left-0 w-full h-full bg-slate-900/80 backdrop-blur-md flex items-center justify-center z-50">
         <div class="bg-white p-10 rounded-3xl shadow-2xl text-center max-w-lg w-full mx-4 relative overflow-hidden">
             <div id="error-msg" class="absolute top-0 left-0 w-full bg-red-500 text-white text-sm font-bold py-2 hidden"></div>
             
-            <h2 class="text-5xl font-black text-blue-600 mb-2">Esqu铆 amb IA</h2>
-            <p id="statusMsg" class="text-sm text-blue-500 font-bold animate-pulse mb-8">Carregant Intel路lig猫ncia Artificial...</p>
+            <h2 class="text-5xl font-black text-blue-600 mb-2">Esquí amb IA</h2>
+            <p id="statusMsg" class="text-sm text-blue-500 font-bold animate-pulse mb-8">Carregant Intel·ligència Artificial...</p>
             
-            <!-- Selecci贸 de Mode -->
+            <!-- Selecció de Mode -->
             <div id="mode-selection" class="space-y-4 opacity-50 pointer-events-none transition-opacity duration-300">
                 <button id="btn-singleplayer" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold py-4 px-8 rounded-2xl transition-all text-xl border-2 border-slate-200">
-                    馃懁 Un Jugador
+                    👤 Un Jugador
                 </button>
                 <button id="btn-multiplayer" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 px-8 rounded-2xl shadow-xl transition-all text-xl">
-                    馃寪 Multijugador Online
+                    🌐 Multijugador Online
                 </button>
             </div>
 
-            <!-- Selecci贸 de Sala Multijugador -->
+            <!-- Selecció de Sala Multijugador -->
             <div id="room-selection" class="hidden space-y-4 mt-4">
                 <p class="text-gray-600 text-sm font-medium">Introdueix un codi de sala per jugar amb un amic:</p>
                 <input type="text" id="room-input" placeholder="Ex: PISTA1" class="w-full text-center font-bold text-2xl p-4 rounded-xl border-2 border-slate-200 uppercase focus:border-blue-500 focus:outline-none">
                 
                 <div class="bg-blue-50 border border-blue-100 p-3 rounded-xl text-left">
-                    <p class="text-xs text-blue-800 font-bold mb-1">馃挕 Com funciona?</p>
-                    <p class="text-xs text-blue-600">Comparteix el joc amb un amic. Tots dos heu d'escriure <strong>el mateix codi</strong> aqu铆 dalt per trobar-vos a la mateixa pista i competir en temps real.</p>
+                    <p class="text-xs text-blue-800 font-bold mb-1">💡 Com funciona?</p>
+                    <p class="text-xs text-blue-600">Comparteix el joc amb un amic. Tots dos heu d'escriure <strong>el mateix codi</strong> aquí dalt per trobar-vos a la mateixa pista i competir en temps real.</p>
                 </div>
 
                 <button id="btn-join-room" class="w-full bg-green-500 hover:bg-green-400 text-white font-bold py-4 px-8 rounded-2xl shadow-xl transition-all text-xl">
                     Unir-se a la Sala
                 </button>
-                <button id="btn-back" class="text-slate-400 font-bold mt-2 hover:text-slate-600">鈫?Tornar</button>
+                <button id="btn-back" class="text-slate-400 font-bold mt-2 hover:text-slate-600">← Tornar</button>
             </div>
         </div>
     </div>
 
-    <!-- L脪GICA DEL JOC I FIREBASE -->
+    <!-- LÒGICA DEL JOC I FIREBASE -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // ==============================================================
-        // 鈿狅笍 CONFIGURACI脫 DE FIREBASE PER A GITHUB PAGES 鈿狅笍
+        // CONFIGURACIÓ DE FIREBASE PER A GITHUB PAGES
         // ==============================================================
         const myFirebaseConfig = {
           apiKey: "AIzaSyCA9HS1dDN4AU2fE87l3bnr-OkYvWSKdcs",
@@ -140,7 +140,6 @@
         let remotePlayerKey = null;
         let syncInterval = null;
         let unsubscribeSnapshot = null;
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'esqui-webcam-ai';
 
         // Variables del Joc
         let isPlaying = false;
@@ -176,10 +175,10 @@
         };
 
         let obstacles = [];
-        const EMOJIS = ['馃尣', '馃尣', '馃尣', '馃', '鉀?];
+        const EMOJIS = ['🌲', '🌲', '🌲', '🪨', '⛄', '❄️'];
         let snowLines = [];
 
-        // Inicialitzaci贸 de la neu de fons
+        // Inicialització de la neu de fons
         for(let i = 0; i < 50; i++) {
             snowLines.push({
                 x: Math.random() * window.innerWidth,
@@ -189,26 +188,16 @@
             });
         }
 
-        // Inicialitzar Firebase
+        // Inicialitzar Firebase DIRECTAMENT
         async function initFirebase() {
             try {
-                let config = myFirebaseConfig;
-                // Suport per entorns interns on hi hagi config global
-                if (typeof __firebase_config !== 'undefined' && myFirebaseConfig.apiKey === "LA_TEVA_API_KEY") {
-                    config = JSON.parse(__firebase_config);
-                }
-
-                const app = initializeApp(config);
+                // S'inicialitza amb les teves dades, sense validar si hi ha entorns estranys
+                const app = initializeApp(myFirebaseConfig);
                 auth = getAuth(app);
                 db = getFirestore(app);
 
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    const cred = await signInWithCustomToken(auth, __initial_auth_token);
-                    user = cred.user;
-                } else {
-                    const cred = await signInAnonymously(auth);
-                    user = cred.user;
-                }
+                const cred = await signInAnonymously(auth);
+                user = cred.user;
                 return true;
             } catch (e) {
                 console.error("Error Firebase:", e);
@@ -233,7 +222,7 @@
         window.addEventListener('resize', resizeCanvas);
         resizeCanvas();
 
-        // ---------------- INTEL路LIG脠NCIA ARTIFICIAL I WEBCAM ----------------
+        // ---------------- INTEL·LIGÈNCIA ARTIFICIAL I WEBCAM ----------------
         let poseNet;
         let poses = [];
 
@@ -249,14 +238,14 @@
                     };
                 });
             } catch (err) {
-                showError("Sense acc茅s a la c脿mera. No es pot jugar.");
+                showError("Sense accés a la càmera. No es pot jugar.");
             }
         }
 
         function initAI() {
             setupCamera().then(() => {
                 poseNet = ml5.poseNet(video, () => {
-                    statusMsg.innerText = "IA preparada! 鉁?;
+                    statusMsg.innerText = "IA preparada! ✅";
                     statusMsg.classList.replace('text-blue-500', 'text-green-500');
                     statusMsg.classList.remove('animate-pulse');
                     modeSelection.classList.remove('opacity-50', 'pointer-events-none');
@@ -274,7 +263,7 @@
                 noseDot.style.left = `${(nose.x / videoW) * 100}%`;
                 noseDot.style.top = `${(nose.y / videoH) * 100}%`;
                 
-                // Mapeig Mirall per la pista (si el nas va a la dreta del v铆deo, l'esquiador va a la dreta de la pantalla)
+                // Mapeig Mirall per la pista (si el nas va a la dreta del vídeo, l'esquiador va a la dreta de la pantalla)
                 let rawTarget = canvas.width - (nose.x / videoW) * canvas.width;
                 localPlayer.targetX = Math.max(localPlayer.size, Math.min(canvas.width - localPlayer.size, rawTarget));
             } else {
@@ -282,7 +271,7 @@
             }
         }
 
-        // ---------------- L脪GICA DEL JOC I RENDIMENT ----------------
+        // ---------------- LÒGICA DEL JOC I RENDIMENT ----------------
         function spawnObstacle() {
             const margin = 60;
             const x = margin + Math.random() * (canvas.width - margin * 2);
@@ -295,14 +284,14 @@
             ctx.translate(playerObj.x, playerObj.y);
             ctx.rotate(playerObj.tilt); 
             
-            // Dibuix dels esqu铆s
+            // Dibuix dels esquís
             ctx.strokeStyle = '#333'; 
             ctx.lineWidth = 5;
             ctx.lineCap = 'round';
             ctx.beginPath(); ctx.moveTo(-14, -30); ctx.lineTo(-14, 30); ctx.stroke();
             ctx.beginPath(); ctx.moveTo(14, -30); ctx.lineTo(14, 30); ctx.stroke();
 
-            // Bra莽os
+            // Braços
             ctx.strokeStyle = playerObj.colorArms;
             ctx.lineWidth = 7;
             ctx.beginPath(); ctx.moveTo(-22, 5); ctx.lineTo(22, 5); ctx.stroke();
@@ -328,7 +317,7 @@
             menuOverlay.classList.remove('hidden');
             modeSelection.classList.remove('hidden');
             roomSelection.classList.add('hidden');
-            statusMsg.innerText = `Has xocat! Puntuaci贸: ${score}`;
+            statusMsg.innerText = `Has xocat! Puntuació: ${score}`;
             statusMsg.classList.replace('text-green-500', 'text-red-500');
             uiLayer.classList.add('hidden');
         }
@@ -347,7 +336,7 @@
             ctx.fillStyle = '#f8fafc'; 
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            // Caiguda de l铆nies de neu (Sensaci贸 de velocitat)
+            // Caiguda de línies de neu (Sensació de velocitat)
             ctx.fillStyle = '#bae6fd'; 
             for (let i = 0; i < snowLines.length; i++) {
                 let flake = snowLines[i];
@@ -368,7 +357,7 @@
                 remotePlayer.tilt = Math.max(-0.4, Math.min(0.4, remDelta * 0.015));
             }
 
-            // L貌gica d'Obstacles i Col路lisions
+            // Lògica d'Obstacles i Col·lisions
             for (let i = obstacles.length - 1; i >= 0; i--) {
                 let obs = obstacles[i];
                 obs.y += gameSpeed * timeScale; 
@@ -377,7 +366,7 @@
                 ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
                 ctx.fillText(obs.emoji, obs.x, obs.y);
 
-                // Col路lisi贸 local
+                // Col·lisió local
                 const dx = localPlayer.x - obs.x;
                 const dy = localPlayer.y - obs.y;
                 if (Math.sqrt(dx * dx + dy * dy) < (localPlayer.size/2 + obs.size/2 - 15)) {
@@ -391,7 +380,7 @@
                     if (score % 100 === 0 && gameSpeed < 20) gameSpeed += 0.8;
                 }
                 
-                // Netejar mem貌ria
+                // Netejar memòria
                 if (obs.y > canvas.height + 50) obstacles.splice(i, 1);
             }
 
@@ -408,16 +397,17 @@
             animationFrameId = requestAnimationFrame(gameLoop);
         }
 
-        // ---------------- MULTIJUGADOR I SINCRONITZACI脫 ----------------
+        // ---------------- MULTIJUGADOR I SINCRONITZACIÓ ----------------
         async function joinRoom(roomId) {
-            if (!user) { showError("Error d'autenticaci贸"); return; }
+            if (!user) { showError("Error d'autenticació amb Firebase"); return; }
             
-            const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomId);
+            // Per evitar problemes de col·lisió, guardem les sales a la col·lecció 'rooms'
+            const roomRef = doc(db, 'rooms', roomId);
             
             try {
                 const snap = await getDoc(roomRef);
                 if (!snap.exists()) {
-                    // Crea sala i 茅s l'Amfitri贸 (P1)
+                    // Crea sala i és l'Amfitrió (P1)
                     myPlayerKey = 'p1'; remotePlayerKey = 'p2';
                     await setDoc(roomRef, {
                         p1: { targetX: 0.5, score: 0 },
@@ -425,7 +415,7 @@
                         createdAt: Date.now()
                     });
                 } else {
-                    // S'uneix a la sala i 茅s Convidat (P2)
+                    // S'uneix a la sala i és Convidat (P2)
                     myPlayerKey = 'p2'; remotePlayerKey = 'p1';
                     await updateDoc(roomRef, {
                         p2: { targetX: 0.5, score: 0 }
@@ -444,7 +434,7 @@
                     
                     if (rivalData) {
                         remotePlayer.active = true;
-                        // Sincronitza posici贸 relativa a amplada de pantalla local
+                        // Sincronitza posició relativa a amplada de pantalla local
                         remotePlayer.targetX = rivalData.targetX * canvas.width;
                         if (rivalData.score !== remotePlayer.score) {
                             remotePlayer.score = rivalData.score;
@@ -454,7 +444,7 @@
                         remotePlayer.active = false;
                     }
                 }, (error) => {
-                    console.error("Error sincronitzaci贸:", error);
+                    console.error("Error sincronització:", error);
                 });
 
                 // Enviar dades locals cada 100ms
@@ -472,8 +462,8 @@
                 startGame(true);
 
             } catch (e) {
-                showError("No s'ha pogut connectar a la sala.");
-                console.error(e);
+                showError("Error: Firebase pot estar mal configurat (Mira la consola).");
+                console.error("Error unió sala:", e);
             }
         }
 
@@ -484,7 +474,7 @@
             remotePlayer.active = false;
         }
 
-        // ---------------- MEN脷S I CONTROLS UI ----------------
+        // ---------------- MENÚS I CONTROLS UI ----------------
         function startGame(multi = false) {
             score = 0; gameSpeed = 8; obstacles = []; lastTime = 0; obstacleTimer = 0;
             localPlayer.x = canvas.width / 2; localPlayer.targetX = canvas.width / 2;
@@ -507,17 +497,9 @@
         btnSingle.addEventListener('click', () => startGame(false));
         
         btnMulti.addEventListener('click', async () => {
-            const isCustomConfig = myFirebaseConfig.apiKey !== "LA_TEVA_API_KEY";
-            const isCanvasConfig = typeof __firebase_config !== 'undefined';
-
-            if (!isCustomConfig && !isCanvasConfig) {
-                showError("Si us plau, afegeix les teves claus de Firebase al codi.");
-                return;
-            }
-
             btnMulti.innerText = "Connectant al servidor...";
             const ok = await initFirebase();
-            btnMulti.innerText = "馃寪 Multijugador Online";
+            btnMulti.innerText = "🌐 Multijugador Online";
 
             if (ok) {
                 modeSelection.classList.add('hidden');
@@ -537,14 +519,14 @@
             if (roomCode.length > 2) {
                 btnJoin.innerText = "Connectant a sala...";
                 joinRoom(roomCode);
-                // Retornar text despr茅s de mig segon visualment
+                // Retornar text després de mig segon visualment
                 setTimeout(() => btnJoin.innerText = "Unir-se a la Sala", 500); 
             } else {
-                showError("El codi ha de tenir m茅s de 2 lletres.");
+                showError("El codi ha de tenir més de 2 lletres.");
             }
         });
 
-        // Iniciar el model PoseNet nom茅s obrir la p脿gina
+        // Iniciar el model PoseNet només obrir la pàgina
         window.onload = initAI;
 
     </script>
