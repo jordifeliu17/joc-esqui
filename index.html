@@ -86,7 +86,7 @@
                 <div class="animate-spin text-5xl">⏳</div>
                 <h3 class="text-2xl font-black text-slate-800">Esperant al Rival...</h3>
                 <p class="text-sm text-gray-500">Comparteix el codi de sala: <span id="waiting-room-code" class="font-black text-blue-600 text-lg"></span></p>
-                <p class="text-xs text-slate-400">La cursa començarà automàticament quan l'altre jugador s'uneixi.</p>
+                <p class="text-xs text-slate-400">La cursa començarà automàticament tan bon punt el rival s'hi connecti.</p>
                 <button id="btn-cancel-wait" class="text-red-500 font-bold hover:text-red-700">Cancel·lar</button>
             </div>
         </div>
@@ -142,6 +142,7 @@
         let syncInterval = null;
         let unsubscribeSnapshot = null;
         let isPushingData = false;
+        let hasStartedGame = false;
         const TARGET_SCORE = 3000;
 
         let isPlaying = false;
@@ -472,6 +473,7 @@
 
         async function joinRoom(roomId) {
             if (!user) { showError("Error d'autenticació"); return; }
+            cleanMultiplayer();
             
             const roomRef = doc(db, 'artifacts', 'esqui-webcam-ai', 'public', 'data', 'rooms', roomId);
             currentRoomId = roomId;
@@ -491,18 +493,6 @@
                     roomSelection.classList.add('hidden');
                     waitingRoom.classList.remove('hidden');
                     waitingRoomCode.innerText = roomId;
-
-                    // Desconnectem expressament aquest listener tan bon punt arrenca el joc
-                    const waitListener = onSnapshot(roomRef, (docSnap) => {
-                        const data = docSnap.data();
-                        if (data && data.p2 && data.status === 'playing') {
-                            waitListener(); // S'atura immediatament per evitar el bucle infinit!
-                            listenToRival(roomRef);
-                            startMultiplayerGame(roomId);
-                        }
-                    });
-                    unsubscribeSnapshot = waitListener;
-
                 } else {
                     const data = snap.data();
                     if (data.p2) { showError("La sala està plena!"); return; }
@@ -512,10 +502,36 @@
                         p2: { targetX: 0.5, score: 0, isJumping: false },
                         status: 'playing'
                     });
-
-                    listenToRival(roomRef);
-                    startMultiplayerGame(roomId);
                 }
+
+                // UN SOL LISTENER PER TOT EL CICLE MULTIJUGADOR
+                unsubscribeSnapshot = onSnapshot(roomRef, (docSnap) => {
+                    if (!docSnap.exists()) return;
+                    const data = docSnap.data();
+
+                    // Comprovació estricta: arrenca UNA SOLA vegada quan tots dos estan llestos
+                    if (!hasStartedGame && data.p1 && data.p2 && data.status === 'playing') {
+                        hasStartedGame = true;
+                        startMultiplayerGame(roomId, roomRef);
+                    }
+
+                    // Sincronització de les dades del rival
+                    if (hasStartedGame) {
+                        const rivalData = data[remotePlayerKey];
+                        if (rivalData) {
+                            remotePlayer.active = true;
+                            remotePlayer.targetX = rivalData.targetX * canvas.width;
+                            remotePlayer.isJumping = rivalData.isJumping;
+                            remotePlayer.scale = rivalData.isJumping ? 1.45 : 1;
+                            remotePlayer.score = Math.floor(rivalData.score || 0);
+                            remoteScoreDisplay.innerText = remotePlayer.score;
+
+                            if (remotePlayer.score >= TARGET_SCORE && isPlaying) {
+                                endGame(false, "rival_win");
+                            }
+                        }
+                    }
+                });
 
             } catch (e) {
                 showError("No s'ha pogut connectar a la sala.");
@@ -523,31 +539,13 @@
             }
         }
 
-        function listenToRival(roomRef) {
-            // Assegurem que no hi hagi cap listener previ actiu
-            if (unsubscribeSnapshot) unsubscribeSnapshot();
+        function startMultiplayerGame(roomId, roomRef) {
+            roomDisplay.innerText = roomId;
+            remoteScorePanel.classList.remove('hidden');
+            targetGoalBanner.classList.remove('hidden');
+            waitingRoom.classList.add('hidden');
+
             if (syncInterval) clearInterval(syncInterval);
-
-            unsubscribeSnapshot = onSnapshot(roomRef, (docSnap) => {
-                if (!docSnap.exists()) return;
-                const data = docSnap.data();
-                const rivalData = data[remotePlayerKey];
-                
-                if (rivalData) {
-                    remotePlayer.active = true;
-                    remotePlayer.targetX = rivalData.targetX * canvas.width;
-                    remotePlayer.isJumping = rivalData.isJumping;
-                    remotePlayer.scale = rivalData.isJumping ? 1.45 : 1;
-                    remotePlayer.score = Math.floor(rivalData.score || 0);
-                    remoteScoreDisplay.innerText = remotePlayer.score;
-
-                    if (remotePlayer.score >= TARGET_SCORE && isPlaying) {
-                        endGame(false, "rival_win");
-                    }
-                }
-            });
-
-            // Sincronització a 100ms amb fre per evitar bloquejos si la connexió té latència
             syncInterval = setInterval(async () => {
                 if (!isPlaying || isPushingData) return;
                 isPushingData = true;
@@ -562,17 +560,12 @@
                     isPushingData = false;
                 }
             }, 100);
-        }
 
-        function startMultiplayerGame(roomId) {
-            roomDisplay.innerText = roomId;
-            remoteScorePanel.classList.remove('hidden');
-            targetGoalBanner.classList.remove('hidden');
-            waitingRoom.classList.add('hidden');
             startGame(true);
         }
 
         function cleanMultiplayer() {
+            hasStartedGame = false;
             if (syncInterval) { clearInterval(syncInterval); syncInterval = null; }
             if (unsubscribeSnapshot) { unsubscribeSnapshot(); unsubscribeSnapshot = null; }
             isMultiplayer = false;
