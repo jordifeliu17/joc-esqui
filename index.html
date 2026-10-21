@@ -89,7 +89,7 @@
         </div>
     </div>
 
-    <!-- LL脪GICA DEL JOC I FIREBASE -->
+    <!-- L脪GICA DEL JOC I FIREBASE -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
@@ -97,16 +97,15 @@
 
         // ==============================================================
         // 鈿狅笍 CONFIGURACI脫 DE FIREBASE PER A GITHUB PAGES 鈿狅笍
-        // Substitueix aquestes dades per les del teu projecte de Firebase
         // ==============================================================
-		const firebaseConfig = {
-		  apiKey: "AIzaSyCA9HS1dDN4AU2fE87l3bnr-OkYvWSKdcs",
-		  authDomain: "joc-esqui.firebaseapp.com",
-		  projectId: "joc-esqui",
-		  storageBucket: "joc-esqui.firebasestorage.app",
-		  messagingSenderId: "478484027502",
-		  appId: "1:478484027502:web:4161c265716cd9015bee7f"
-		};
+        const myFirebaseConfig = {
+          apiKey: "AIzaSyCA9HS1dDN4AU2fE87l3bnr-OkYvWSKdcs",
+          authDomain: "joc-esqui.firebaseapp.com",
+          projectId: "joc-esqui",
+          storageBucket: "joc-esqui.firebasestorage.app",
+          messagingSenderId: "478484027502",
+          appId: "1:478484027502:web:4161c265716cd9015bee7f"
+        };
         // ==============================================================
 
         // Elements del DOM
@@ -283,7 +282,7 @@
             }
         }
 
-        // ---------------- LL脪GICA DEL JOC I RENDIMENT ----------------
+        // ---------------- L脪GICA DEL JOC I RENDIMENT ----------------
         function spawnObstacle() {
             const margin = 60;
             const x = margin + Math.random() * (canvas.width - margin * 2);
