@@ -3,14 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Esquí amb Webcam - Multijugador</title>
+    <title>Esqu铆 amb Webcam - Multijugador</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Utilitzem ml5.js v0.12.2 (PoseNet) que 茅s molt estable per a web -->
     <script src="https://unpkg.com/ml5@0.12.2/dist/ml5.min.js" type="text/javascript"></script>
     
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background-color: #f8fafc; font-family: 'Inter', sans-serif; }
         #gameCanvas { display: block; width: 100%; height: 100%; }
-        #webcam-container { transform: scaleX(-1); }
+        #webcam-container { transform: scaleX(-1); /* Efecte mirall */ }
         .glass-panel { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(12px); box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1); border: 1px solid rgba(255,255,255,0.2); }
         .hidden { display: none !important; }
     </style>
@@ -19,19 +20,21 @@
 
     <canvas id="gameCanvas"></canvas>
 
-    <!-- UI In-Game -->
+    <!-- UI In-Game (Marcs de puntuaci贸 i c脿mera) -->
     <div id="ui-layer" class="absolute top-0 left-0 w-full h-full pointer-events-none flex flex-col justify-between p-6 z-10 hidden">
         <div class="flex justify-between items-start">
             <div class="glass-panel rounded-2xl p-4 pointer-events-auto">
-                <h1 class="text-3xl font-black text-blue-600 flex items-center gap-2">🎿 NEU-IA</h1>
+                <h1 class="text-3xl font-black text-blue-600 flex items-center gap-2">馃幙 NEU-IA</h1>
                 <p class="text-sm text-gray-600 font-medium mt-1">Sala: <span id="room-display" class="font-bold text-blue-500">Local</span></p>
             </div>
             
             <div class="flex gap-4">
+                <!-- Puntuaci贸 del Rival (Nom茅s visible en Multijugador) -->
                 <div id="remote-score-panel" class="glass-panel rounded-2xl p-4 text-center pointer-events-auto min-w-[100px] hidden border-b-4 border-red-500">
                     <p class="text-xs text-gray-500 font-bold uppercase tracking-wider">Rival</p>
                     <p id="remoteScoreDisplay" class="text-3xl font-black text-red-600">0</p>
                 </div>
+                <!-- La teva puntuaci贸 -->
                 <div class="glass-panel rounded-2xl p-4 text-center pointer-events-auto min-w-[130px] border-b-4 border-blue-500">
                     <p class="text-sm text-gray-500 font-bold uppercase tracking-wider">Tu (Punts)</p>
                     <p id="scoreDisplay" class="text-5xl font-black text-blue-600">0</p>
@@ -39,56 +42,74 @@
             </div>
         </div>
 
+        <!-- Previsualitzaci贸 de la C脿mera -->
         <div class="glass-panel p-3 rounded-2xl w-64 pointer-events-auto self-start relative">
-            <p class="text-sm font-bold text-center text-gray-500 mb-2">Càmera (Tu)</p>
+            <p class="text-sm font-bold text-center text-gray-500 mb-2">C脿mera (Tu)</p>
             <div id="webcam-container" class="rounded-xl overflow-hidden bg-black aspect-video relative shadow-inner">
                 <video id="webcam" autoplay playsinline class="w-full h-full object-cover"></video>
+                <!-- Punt verd que segueix el nas -->
                 <div id="nose-dot" class="absolute w-4 h-4 bg-green-400 border-2 border-white rounded-full hidden shadow-lg" style="transform: translate(-50%, -50%);"></div>
             </div>
         </div>
     </div>
 
-    <!-- Menú Principal -->
+    <!-- Men煤 Principal -->
     <div id="menu-overlay" class="absolute top-0 left-0 w-full h-full bg-slate-900/80 backdrop-blur-md flex items-center justify-center z-50">
         <div class="bg-white p-10 rounded-3xl shadow-2xl text-center max-w-lg w-full mx-4 relative overflow-hidden">
             <div id="error-msg" class="absolute top-0 left-0 w-full bg-red-500 text-white text-sm font-bold py-2 hidden"></div>
             
-            <h2 class="text-5xl font-black text-blue-600 mb-2">Esquí amb IA</h2>
-            <p id="statusMsg" class="text-sm text-blue-500 font-bold animate-pulse mb-8">Carregant Intel·ligència Artificial...</p>
+            <h2 class="text-5xl font-black text-blue-600 mb-2">Esqu铆 amb IA</h2>
+            <p id="statusMsg" class="text-sm text-blue-500 font-bold animate-pulse mb-8">Carregant Intel路lig猫ncia Artificial...</p>
             
+            <!-- Selecci贸 de Mode -->
             <div id="mode-selection" class="space-y-4 opacity-50 pointer-events-none transition-opacity duration-300">
                 <button id="btn-singleplayer" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold py-4 px-8 rounded-2xl transition-all text-xl border-2 border-slate-200">
-                    👤 Un Jugador
+                    馃懁 Un Jugador
                 </button>
                 <button id="btn-multiplayer" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-4 px-8 rounded-2xl shadow-xl transition-all text-xl">
-                    🌐 Multijugador Online
+                    馃寪 Multijugador Online
                 </button>
             </div>
 
+            <!-- Selecci贸 de Sala Multijugador -->
             <div id="room-selection" class="hidden space-y-4 mt-4">
                 <p class="text-gray-600 text-sm font-medium">Introdueix un codi de sala per jugar amb un amic:</p>
                 <input type="text" id="room-input" placeholder="Ex: PISTA1" class="w-full text-center font-bold text-2xl p-4 rounded-xl border-2 border-slate-200 uppercase focus:border-blue-500 focus:outline-none">
                 
                 <div class="bg-blue-50 border border-blue-100 p-3 rounded-xl text-left">
-                    <p class="text-xs text-blue-800 font-bold mb-1">💡 Com funciona?</p>
-                    <p class="text-xs text-blue-600">Comparteix el joc amb un amic. Tots dos heu d'escriure <strong>el mateix codi</strong> aquí dalt per trobar-vos a la mateixa pista i competir en temps real.</p>
+                    <p class="text-xs text-blue-800 font-bold mb-1">馃挕 Com funciona?</p>
+                    <p class="text-xs text-blue-600">Comparteix el joc amb un amic. Tots dos heu d'escriure <strong>el mateix codi</strong> aqu铆 dalt per trobar-vos a la mateixa pista i competir en temps real.</p>
                 </div>
 
                 <button id="btn-join-room" class="w-full bg-green-500 hover:bg-green-400 text-white font-bold py-4 px-8 rounded-2xl shadow-xl transition-all text-xl">
                     Unir-se a la Sala
                 </button>
-                <button id="btn-back" class="text-slate-400 font-bold mt-2 hover:text-slate-600">← Tornar</button>
+                <button id="btn-back" class="text-slate-400 font-bold mt-2 hover:text-slate-600">鈫?Tornar</button>
             </div>
         </div>
     </div>
 
-    <!-- FIREBASE & GAME LOGIC -->
+    <!-- LL脪GICA DEL JOC I FIREBASE -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Constants & DOM Elements
+        // ==============================================================
+        // 鈿狅笍 CONFIGURACI脫 DE FIREBASE PER A GITHUB PAGES 鈿狅笍
+        // Substitueix aquestes dades per les del teu projecte de Firebase
+        // ==============================================================
+		const firebaseConfig = {
+		  apiKey: "AIzaSyCA9HS1dDN4AU2fE87l3bnr-OkYvWSKdcs",
+		  authDomain: "joc-esqui.firebaseapp.com",
+		  projectId: "joc-esqui",
+		  storageBucket: "joc-esqui.firebasestorage.app",
+		  messagingSenderId: "478484027502",
+		  appId: "1:478484027502:web:4161c265716cd9015bee7f"
+		};
+        // ==============================================================
+
+        // Elements del DOM
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         const video = document.getElementById('webcam');
@@ -112,20 +133,17 @@
         const remoteScorePanel = document.getElementById('remote-score-panel');
         const roomDisplay = document.getElementById('room-display');
 
-        // Firebase Vars
+        // Variables Multijugador i Firebase
         let db, auth, user;
         let isMultiplayer = false;
         let currentRoomId = null;
-        let myPlayerKey = null; // 'p1' o 'p2'
+        let myPlayerKey = null; 
         let remotePlayerKey = null;
         let syncInterval = null;
         let unsubscribeSnapshot = null;
-        
-        // Setup environment config
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'esqui-webcam-ai';
-        const hasFirebaseConfig = typeof __firebase_config !== 'undefined';
 
-        // Game Vars
+        // Variables del Joc
         let isPlaying = false;
         let score = 0;
         let gameSpeed = 8;
@@ -134,7 +152,7 @@
         let obstacleTimer = 0;
         let videoW = 320, videoH = 240, videoReady = false;
 
-        // Jugador Local (Blau)
+        // Propietats Jugador Local (Blau)
         let localPlayer = {
             x: window.innerWidth / 2,
             y: window.innerHeight - 120,
@@ -142,11 +160,11 @@
             targetX: window.innerWidth / 2,
             speed: 0.15,
             tilt: 0,
-            colorBase: '#1e3a8a', // Blau fosc
-            colorArms: '#3b82f6'  // Blau clar
+            colorBase: '#1e3a8a', 
+            colorArms: '#3b82f6'  
         };
 
-        // Jugador Remot (Vermell)
+        // Propietats Jugador Remot (Vermell)
         let remotePlayer = {
             active: false,
             x: window.innerWidth / 2,
@@ -154,15 +172,15 @@
             targetX: window.innerWidth / 2,
             score: 0,
             tilt: 0,
-            colorBase: '#7f1d1d', // Vermell fosc
-            colorArms: '#ef4444'  // Vermell clar
+            colorBase: '#7f1d1d', 
+            colorArms: '#ef4444'  
         };
 
         let obstacles = [];
-        const EMOJIS = ['🌲', '🌲', '🌲', '🪨', '⛄'];
+        const EMOJIS = ['馃尣', '馃尣', '馃尣', '馃', '鉀?];
         let snowLines = [];
 
-        // Generació procedural de neu
+        // Inicialitzaci贸 de la neu de fons
         for(let i = 0; i < 50; i++) {
             snowLines.push({
                 x: Math.random() * window.innerWidth,
@@ -172,11 +190,15 @@
             });
         }
 
-        // Initialize Firebase
+        // Inicialitzar Firebase
         async function initFirebase() {
-            if (!hasFirebaseConfig) return false;
             try {
-                const config = JSON.parse(__firebase_config);
+                let config = myFirebaseConfig;
+                // Suport per entorns interns on hi hagi config global
+                if (typeof __firebase_config !== 'undefined' && myFirebaseConfig.apiKey === "LA_TEVA_API_KEY") {
+                    config = JSON.parse(__firebase_config);
+                }
+
                 const app = initializeApp(config);
                 auth = getAuth(app);
                 db = getFirestore(app);
@@ -195,14 +217,14 @@
             }
         }
 
-        // Mostrar errors per UI (sense alert)
+        // Sistema d'errors
         function showError(msg) {
             errorMsg.innerText = msg;
             errorMsg.classList.remove('hidden');
             setTimeout(() => errorMsg.classList.add('hidden'), 4000);
         }
 
-        // Redimensionar Canvas
+        // Adaptabilitat de pantalla
         function resizeCanvas() {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
@@ -212,7 +234,7 @@
         window.addEventListener('resize', resizeCanvas);
         resizeCanvas();
 
-        // ---------------- AI & WEBCAM ----------------
+        // ---------------- INTEL路LIG脠NCIA ARTIFICIAL I WEBCAM ----------------
         let poseNet;
         let poses = [];
 
@@ -228,14 +250,14 @@
                     };
                 });
             } catch (err) {
-                showError("Sense accés a la càmera. No es pot jugar.");
+                showError("Sense acc茅s a la c脿mera. No es pot jugar.");
             }
         }
 
         function initAI() {
             setupCamera().then(() => {
                 poseNet = ml5.poseNet(video, () => {
-                    statusMsg.innerText = "IA preparada! ✅";
+                    statusMsg.innerText = "IA preparada! 鉁?;
                     statusMsg.classList.replace('text-blue-500', 'text-green-500');
                     statusMsg.classList.remove('animate-pulse');
                     modeSelection.classList.remove('opacity-50', 'pointer-events-none');
@@ -247,12 +269,13 @@
         function processPose() {
             if (!videoReady || poses.length === 0) { noseDot.style.display = 'none'; return; }
             const nose = poses[0].pose.nose;
+            
             if (nose.confidence > 0.15) {
                 noseDot.style.display = 'block';
                 noseDot.style.left = `${(nose.x / videoW) * 100}%`;
                 noseDot.style.top = `${(nose.y / videoH) * 100}%`;
                 
-                // Mapeig Mirall
+                // Mapeig Mirall per la pista (si el nas va a la dreta del v铆deo, l'esquiador va a la dreta de la pantalla)
                 let rawTarget = canvas.width - (nose.x / videoW) * canvas.width;
                 localPlayer.targetX = Math.max(localPlayer.size, Math.min(canvas.width - localPlayer.size, rawTarget));
             } else {
@@ -260,7 +283,7 @@
             }
         }
 
-        // ---------------- GAME LOGIC ----------------
+        // ---------------- LL脪GICA DEL JOC I RENDIMENT ----------------
         function spawnObstacle() {
             const margin = 60;
             const x = margin + Math.random() * (canvas.width - margin * 2);
@@ -273,14 +296,14 @@
             ctx.translate(playerObj.x, playerObj.y);
             ctx.rotate(playerObj.tilt); 
             
-            // Esquís
+            // Dibuix dels esqu铆s
             ctx.strokeStyle = '#333'; 
             ctx.lineWidth = 5;
             ctx.lineCap = 'round';
             ctx.beginPath(); ctx.moveTo(-14, -30); ctx.lineTo(-14, 30); ctx.stroke();
             ctx.beginPath(); ctx.moveTo(14, -30); ctx.lineTo(14, 30); ctx.stroke();
 
-            // Braços
+            // Bra莽os
             ctx.strokeStyle = playerObj.colorArms;
             ctx.lineWidth = 7;
             ctx.beginPath(); ctx.moveTo(-22, 5); ctx.lineTo(22, 5); ctx.stroke();
@@ -306,24 +329,26 @@
             menuOverlay.classList.remove('hidden');
             modeSelection.classList.remove('hidden');
             roomSelection.classList.add('hidden');
-            statusMsg.innerText = `Has xocat! Puntuació: ${score}`;
+            statusMsg.innerText = `Has xocat! Puntuaci贸: ${score}`;
             statusMsg.classList.replace('text-green-500', 'text-red-500');
             uiLayer.classList.add('hidden');
         }
 
         function gameLoop(timestamp) {
             if (!isPlaying) return;
+            
+            // Delta Time (Fluiditat segons els Hz del monitor)
             if (!lastTime) lastTime = timestamp;
             let dt = timestamp - lastTime;
             lastTime = timestamp;
             if (dt > 100) dt = 16.66; 
             let timeScale = dt / 16.66; 
 
-            // Fons
+            // Fons de neu
             ctx.fillStyle = '#f8fafc'; 
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            // Neu
+            // Caiguda de l铆nies de neu (Sensaci贸 de velocitat)
             ctx.fillStyle = '#bae6fd'; 
             for (let i = 0; i < snowLines.length; i++) {
                 let flake = snowLines[i];
@@ -332,19 +357,19 @@
                 ctx.fillRect(flake.x, flake.y, 3, flake.length);
             }
 
-            // Moviment Local (LERP)
+            // Moviment Local del jugador (Suavitzat LERP)
             const moveDelta = (localPlayer.targetX - localPlayer.x);
             localPlayer.x += moveDelta * localPlayer.speed * timeScale;
             localPlayer.tilt = Math.max(-0.4, Math.min(0.4, moveDelta * 0.015));
 
-            // Moviment Remot (LERP per suavitzar)
+            // Moviment del Rival (Suavitzat LERP)
             if (isMultiplayer && remotePlayer.active) {
                 const remDelta = (remotePlayer.targetX - remotePlayer.x);
                 remotePlayer.x += remDelta * 0.1 * timeScale;
                 remotePlayer.tilt = Math.max(-0.4, Math.min(0.4, remDelta * 0.015));
             }
 
-            // Obstacles
+            // L貌gica d'Obstacles i Col路lisions
             for (let i = obstacles.length - 1; i >= 0; i--) {
                 let obs = obstacles[i];
                 obs.y += gameSpeed * timeScale; 
@@ -353,7 +378,7 @@
                 ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
                 ctx.fillText(obs.emoji, obs.x, obs.y);
 
-                // Col·lisió local
+                // Col路lisi贸 local
                 const dx = localPlayer.x - obs.x;
                 const dy = localPlayer.y - obs.y;
                 if (Math.sqrt(dx * dx + dy * dy) < (localPlayer.size/2 + obs.size/2 - 15)) {
@@ -366,31 +391,34 @@
                     scoreDisplay.innerText = score;
                     if (score % 100 === 0 && gameSpeed < 20) gameSpeed += 0.8;
                 }
+                
+                // Netejar mem貌ria
                 if (obs.y > canvas.height + 50) obstacles.splice(i, 1);
             }
 
+            // Generador procedimental d'obstacles segons velocitat i Delta Time
             obstacleTimer += dt;
             if (obstacleTimer > Math.max(300, 1000 - (gameSpeed * 30))) {
                 spawnObstacle(); obstacleTimer = 0;
             }
 
             // Dibuixar Jugadors
-            if (isMultiplayer && remotePlayer.active) drawSkier(remotePlayer); // Dibuixem el rival primer (per sota)
-            drawSkier(localPlayer); // Dibuixem el local per sobre
+            if (isMultiplayer && remotePlayer.active) drawSkier(remotePlayer); // Rival a sota
+            drawSkier(localPlayer); // Local per sobre
 
             animationFrameId = requestAnimationFrame(gameLoop);
         }
 
-        // ---------------- MULTIPLAYER SYNC ----------------
+        // ---------------- MULTIJUGADOR I SINCRONITZACI脫 ----------------
         async function joinRoom(roomId) {
-            if (!user) { showError("Error d'autenticació"); return; }
+            if (!user) { showError("Error d'autenticaci贸"); return; }
             
             const roomRef = doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomId);
             
             try {
                 const snap = await getDoc(roomRef);
                 if (!snap.exists()) {
-                    // Sóc el P1 (Amfitrió)
+                    // Crea sala i 茅s l'Amfitri贸 (P1)
                     myPlayerKey = 'p1'; remotePlayerKey = 'p2';
                     await setDoc(roomRef, {
                         p1: { targetX: 0.5, score: 0 },
@@ -398,7 +426,7 @@
                         createdAt: Date.now()
                     });
                 } else {
-                    // Sóc el P2 (Convidat)
+                    // S'uneix a la sala i 茅s Convidat (P2)
                     myPlayerKey = 'p2'; remotePlayerKey = 'p1';
                     await updateDoc(roomRef, {
                         p2: { targetX: 0.5, score: 0 }
@@ -409,7 +437,7 @@
                 roomDisplay.innerText = roomId;
                 remoteScorePanel.classList.remove('hidden');
                 
-                // Escoltar canvis del rival
+                // Escoltar dades del rival
                 unsubscribeSnapshot = onSnapshot(roomRef, (docSnap) => {
                     if (!docSnap.exists()) return;
                     const data = docSnap.data();
@@ -417,7 +445,7 @@
                     
                     if (rivalData) {
                         remotePlayer.active = true;
-                        // Rebem posició relativa (0 a 1) i la convertim a píxels locals
+                        // Sincronitza posici贸 relativa a amplada de pantalla local
                         remotePlayer.targetX = rivalData.targetX * canvas.width;
                         if (rivalData.score !== remotePlayer.score) {
                             remotePlayer.score = rivalData.score;
@@ -427,14 +455,13 @@
                         remotePlayer.active = false;
                     }
                 }, (error) => {
-                    console.error("Error sincronització:", error);
+                    console.error("Error sincronitzaci贸:", error);
                 });
 
-                // Bucle d'enviament de dades locals (10 cops per segon per no saturar DB)
+                // Enviar dades locals cada 100ms
                 syncInterval = setInterval(async () => {
                     if (!isPlaying) return;
                     try {
-                        // Enviem posició relativa (0 a 1) perquè funcioni entre pantalles de mides diferents
                         const relativeX = localPlayer.targetX / canvas.width;
                         await updateDoc(roomRef, {
                             [`${myPlayerKey}.targetX`]: relativeX,
@@ -458,7 +485,7 @@
             remotePlayer.active = false;
         }
 
-        // ---------------- CONTROLS UI ----------------
+        // ---------------- MEN脷S I CONTROLS UI ----------------
         function startGame(multi = false) {
             score = 0; gameSpeed = 8; obstacles = []; lastTime = 0; obstacleTimer = 0;
             localPlayer.x = canvas.width / 2; localPlayer.targetX = canvas.width / 2;
@@ -481,11 +508,18 @@
         btnSingle.addEventListener('click', () => startGame(false));
         
         btnMulti.addEventListener('click', async () => {
-            if (!hasFirebaseConfig) {
-                showError("El mode multijugador no està configurat en aquest entorn.");
+            const isCustomConfig = myFirebaseConfig.apiKey !== "LA_TEVA_API_KEY";
+            const isCanvasConfig = typeof __firebase_config !== 'undefined';
+
+            if (!isCustomConfig && !isCanvasConfig) {
+                showError("Si us plau, afegeix les teves claus de Firebase al codi.");
                 return;
             }
+
+            btnMulti.innerText = "Connectant al servidor...";
             const ok = await initFirebase();
+            btnMulti.innerText = "馃寪 Multijugador Online";
+
             if (ok) {
                 modeSelection.classList.add('hidden');
                 roomSelection.classList.remove('hidden');
@@ -502,14 +536,16 @@
         btnJoin.addEventListener('click', () => {
             const roomCode = roomInput.value.trim().toUpperCase();
             if (roomCode.length > 2) {
-                btnJoin.innerText = "Connectant...";
+                btnJoin.innerText = "Connectant a sala...";
                 joinRoom(roomCode);
+                // Retornar text despr茅s de mig segon visualment
+                setTimeout(() => btnJoin.innerText = "Unir-se a la Sala", 500); 
             } else {
-                showError("El codi ha de tenir més de 2 lletres.");
+                showError("El codi ha de tenir m茅s de 2 lletres.");
             }
         });
 
-        // Iniciar IA a la càrrega
+        // Iniciar el model PoseNet nom茅s obrir la p脿gina
         window.onload = initAI;
 
     </script>
