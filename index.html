@@ -86,7 +86,7 @@
                 <div class="animate-spin text-5xl">⏳</div>
                 <h3 class="text-2xl font-black text-slate-800">Esperant al Rival...</h3>
                 <p class="text-sm text-gray-500">Comparteix el codi de sala: <span id="waiting-room-code" class="font-black text-blue-600 text-lg"></span></p>
-                <p class="text-xs text-slate-400">La cursa començarà tan bon punt el teu contrincant entri amb aquest mateix codi.</p>
+                <p class="text-xs text-slate-400">La cursa començarà automàticament quan l'altre jugador s'uneixi.</p>
                 <button id="btn-cancel-wait" class="text-red-500 font-bold hover:text-red-700">Cancel·lar</button>
             </div>
         </div>
@@ -141,6 +141,7 @@
         let remotePlayerKey = null;
         let syncInterval = null;
         let unsubscribeSnapshot = null;
+        let isPushingData = false;
         const TARGET_SCORE = 3000;
 
         let isPlaying = false;
@@ -372,7 +373,6 @@
             if (dt > 100) dt = 16.66;
             let timeScale = dt / 16.66;
 
-            // Actualitzar estat de Salt i Atordiment
             if (localPlayer.isJumping) {
                 localPlayer.jumpTimer -= dt;
                 localPlayer.scale = 1 + Math.sin((1 - localPlayer.jumpTimer / 1200) * Math.PI) * 0.45;
@@ -390,7 +390,6 @@
                 currentSpeed = baseSpeed * 0.35;
             }
 
-            // Distància recorreguda
             score += (currentSpeed * 0.08) * timeScale;
             scoreDisplay.innerText = Math.floor(score);
 
@@ -399,7 +398,6 @@
                 return;
             }
 
-            // Dibuix de fons i neu
             ctx.fillStyle = '#f8fafc';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -411,7 +409,6 @@
                 ctx.fillRect(flake.x, flake.y, 3, flake.length);
             }
 
-            // Moviment suavitzat
             const moveDelta = (localPlayer.targetX - localPlayer.x);
             localPlayer.x += moveDelta * localPlayer.speed * timeScale;
             localPlayer.tilt = Math.max(-0.4, Math.min(0.4, moveDelta * 0.015));
@@ -422,7 +419,6 @@
                 remotePlayer.tilt = Math.max(-0.4, Math.min(0.4, remDelta * 0.015));
             }
 
-            // Gestió d'obstacles
             for (let i = obstacles.length - 1; i >= 0; i--) {
                 let obs = obstacles[i];
                 obs.y += currentSpeed * timeScale;
@@ -435,7 +431,6 @@
                     ctx.fillText(obs.emoji, obs.x, obs.y);
                 }
 
-                // Detecció de col·lisions
                 const dx = localPlayer.x - obs.x;
                 const dy = localPlayer.y - obs.y;
                 const dist = Math.sqrt(dx * dx + dy * dy);
@@ -469,7 +464,6 @@
                 obstacleTimer = 0;
             }
 
-            // Dibuix dels esquiadors
             if (isMultiplayer && remotePlayer.active) drawSkier(remotePlayer);
             drawSkier(localPlayer);
 
@@ -498,13 +492,16 @@
                     waitingRoom.classList.remove('hidden');
                     waitingRoomCode.innerText = roomId;
 
-                    unsubscribeSnapshot = onSnapshot(roomRef, (docSnap) => {
+                    // Desconnectem expressament aquest listener tan bon punt arrenca el joc
+                    const waitListener = onSnapshot(roomRef, (docSnap) => {
                         const data = docSnap.data();
                         if (data && data.p2 && data.status === 'playing') {
+                            waitListener(); // S'atura immediatament per evitar el bucle infinit!
                             listenToRival(roomRef);
                             startMultiplayerGame(roomId);
                         }
                     });
+                    unsubscribeSnapshot = waitListener;
 
                 } else {
                     const data = snap.data();
@@ -527,6 +524,10 @@
         }
 
         function listenToRival(roomRef) {
+            // Assegurem que no hi hagi cap listener previ actiu
+            if (unsubscribeSnapshot) unsubscribeSnapshot();
+            if (syncInterval) clearInterval(syncInterval);
+
             unsubscribeSnapshot = onSnapshot(roomRef, (docSnap) => {
                 if (!docSnap.exists()) return;
                 const data = docSnap.data();
@@ -546,8 +547,10 @@
                 }
             });
 
+            // Sincronització a 100ms amb fre per evitar bloquejos si la connexió té latència
             syncInterval = setInterval(async () => {
-                if (!isPlaying) return;
+                if (!isPlaying || isPushingData) return;
+                isPushingData = true;
                 try {
                     await updateDoc(roomRef, {
                         [`${myPlayerKey}.targetX`]: localPlayer.targetX / canvas.width,
@@ -555,7 +558,10 @@
                         [`${myPlayerKey}.isJumping`]: localPlayer.isJumping
                     });
                 } catch(e) {}
-            }, 80);
+                finally {
+                    isPushingData = false;
+                }
+            }, 100);
         }
 
         function startMultiplayerGame(roomId) {
@@ -567,10 +573,11 @@
         }
 
         function cleanMultiplayer() {
-            if (syncInterval) clearInterval(syncInterval);
-            if (unsubscribeSnapshot) unsubscribeSnapshot();
+            if (syncInterval) { clearInterval(syncInterval); syncInterval = null; }
+            if (unsubscribeSnapshot) { unsubscribeSnapshot(); unsubscribeSnapshot = null; }
             isMultiplayer = false;
             remotePlayer.active = false;
+            isPushingData = false;
         }
 
         function startGame(multi = false) {
