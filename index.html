@@ -70,31 +70,45 @@
                 </button>
             </div>
 
-            <!-- Formulari per entrar a sala -->
+            <!-- Opcions Multijugador: Crear o Unir-se -->
             <div id="room-selection" class="hidden space-y-4 mt-2">
-                <p class="text-gray-600 text-sm font-medium">Escriu el codi de la sala per competir:</p>
-                <input type="text" id="room-input" placeholder="EX: NEU10" class="w-full text-center font-bold text-2xl p-3 rounded-xl border-2 border-slate-200 uppercase focus:border-blue-500 focus:outline-none">
-                
-                <button id="btn-join-room" class="w-full bg-green-500 hover:bg-green-400 text-white font-bold py-4 px-8 rounded-2xl shadow-xl transition-all text-xl">
-                    Entrar a la Sala
+                <button id="btn-create-room" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-6 rounded-xl shadow-lg transition-all text-lg flex items-center justify-center gap-2">
+                    ➕ Crear Sala Nova
                 </button>
-                <button id="btn-back" class="text-slate-400 font-bold mt-2 hover:text-slate-600 block w-full">← Tornar</button>
+
+                <div class="relative flex py-2 items-center">
+                    <div class="flex-grow border-t border-slate-200"></div>
+                    <span class="flex-shrink mx-4 text-xs uppercase font-bold text-slate-400">o uneix-te a una</span>
+                    <div class="flex-grow border-t border-slate-200"></div>
+                </div>
+
+                <div class="space-y-2">
+                    <input type="text" id="room-input" placeholder="CODI DE SALA" class="w-full text-center font-bold text-xl p-3 rounded-xl border-2 border-slate-200 uppercase focus:border-blue-500 focus:outline-none">
+                    <button id="btn-join-room" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 px-6 rounded-xl shadow-lg transition-all text-lg">
+                        👥 Unir-se a la Sala
+                    </button>
+                </div>
+
+                <button id="btn-back" class="text-slate-400 font-bold mt-2 hover:text-slate-600 block w-full text-sm">← Tornar al menú</button>
             </div>
 
-            <!-- Sala d'espera multijugador -->
+            <!-- Sala d'espera per a l'amfitrió -->
             <div id="waiting-room" class="hidden space-y-6 py-4">
                 <div class="animate-spin text-5xl">⏳</div>
                 <h3 class="text-2xl font-black text-slate-800">Esperant al Rival...</h3>
-                <p class="text-sm text-gray-500">Comparteix el codi de sala: <span id="waiting-room-code" class="font-black text-blue-600 text-lg"></span></p>
-                <p class="text-xs text-slate-400">La cursa començarà automàticament tan bon punt el rival s'hi connecti.</p>
-                <button id="btn-cancel-wait" class="text-red-500 font-bold hover:text-red-700">Cancel·lar</button>
+                <div class="bg-blue-50 p-4 rounded-2xl border border-blue-200">
+                    <p class="text-xs uppercase tracking-wider text-blue-600 font-bold mb-1">Codi de la teva sala</p>
+                    <span id="waiting-room-code" class="text-3xl font-black text-blue-700 tracking-widest font-mono"></span>
+                </div>
+                <p class="text-xs text-slate-500">Passa aquest codi al teu amic. La cursa s'iniciarà automàticament quan entri.</p>
+                <button id="btn-cancel-wait" class="text-red-500 font-bold hover:text-red-700 text-sm">Cancel·lar i sortir</button>
             </div>
         </div>
     </div>
 
     <!-- Mòdul Firebase i Lògica del Joc -->
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
@@ -124,6 +138,7 @@
         
         const btnSingle = document.getElementById('btn-singleplayer');
         const btnMulti = document.getElementById('btn-multiplayer');
+        const btnCreateRoom = document.getElementById('btn-create-room');
         const btnJoin = document.getElementById('btn-join-room');
         const btnBack = document.getElementById('btn-back');
         const btnCancelWait = document.getElementById('btn-cancel-wait');
@@ -134,7 +149,7 @@
         const remoteScorePanel = document.getElementById('remote-score-panel');
         const roomDisplay = document.getElementById('room-display');
 
-        let db, auth, user;
+        let app = null, db = null, auth = null, user = null;
         let isMultiplayer = false;
         let currentRoomId = null;
         let myPlayerKey = null; 
@@ -197,11 +212,15 @@
 
         async function initFirebase() {
             try {
-                const app = initializeApp(firebaseConfig);
-                auth = getAuth(app);
-                db = getFirestore(app);
-                const cred = await signInAnonymously(auth);
-                user = cred.user;
+                if (getApps().length === 0) {
+                    app = initializeApp(firebaseConfig);
+                }
+                if (!auth) auth = getAuth(app);
+                if (!db) db = getFirestore(app);
+                if (!user) {
+                    const cred = await signInAnonymously(auth);
+                    user = cred.user;
+                }
                 return true;
             } catch (e) {
                 console.error("Error Firebase:", e);
@@ -471,71 +490,103 @@
             animationFrameId = requestAnimationFrame(gameLoop);
         }
 
-        async function joinRoom(roomId) {
+        async function createRoom() {
             if (!user) { showError("Error d'autenticació"); return; }
             cleanMultiplayer();
-            
-            const roomRef = doc(db, 'artifacts', 'esqui-webcam-ai', 'public', 'data', 'rooms', roomId);
+
+            const roomId = "SALA" + Math.floor(100 + Math.random() * 900);
+            const roomRef = doc(db, 'rooms', roomId);
             currentRoomId = roomId;
 
             try {
-                const snap = await getDoc(roomRef);
-                
-                if (!snap.exists()) {
-                    myPlayerKey = 'p1'; remotePlayerKey = 'p2';
-                    await setDoc(roomRef, {
-                        p1: { targetX: 0.5, score: 0, isJumping: false },
-                        p2: null,
-                        status: 'waiting',
-                        createdAt: Date.now()
-                    });
+                myPlayerKey = 'p1'; remotePlayerKey = 'p2';
+                await setDoc(roomRef, {
+                    p1: { targetX: 0.5, score: 0, isJumping: false },
+                    p2: null,
+                    status: 'waiting',
+                    createdAt: Date.now()
+                });
 
-                    roomSelection.classList.add('hidden');
-                    waitingRoom.classList.remove('hidden');
-                    waitingRoomCode.innerText = roomId;
-                } else {
-                    const data = snap.data();
-                    if (data.p2) { showError("La sala està plena!"); return; }
+                roomSelection.classList.add('hidden');
+                waitingRoom.classList.remove('hidden');
+                waitingRoomCode.innerText = roomId;
 
-                    myPlayerKey = 'p2'; remotePlayerKey = 'p1';
-                    await updateDoc(roomRef, {
-                        p2: { targetX: 0.5, score: 0, isJumping: false },
-                        status: 'playing'
-                    });
-                }
-
-                // UN SOL LISTENER PER TOT EL CICLE MULTIJUGADOR
                 unsubscribeSnapshot = onSnapshot(roomRef, (docSnap) => {
                     if (!docSnap.exists()) return;
                     const data = docSnap.data();
 
-                    // Comprovació estricta: arrenca UNA SOLA vegada quan tots dos estan llestos
                     if (!hasStartedGame && data.p1 && data.p2 && data.status === 'playing') {
                         hasStartedGame = true;
                         startMultiplayerGame(roomId, roomRef);
                     }
 
-                    // Sincronització de les dades del rival
-                    if (hasStartedGame) {
-                        const rivalData = data[remotePlayerKey];
-                        if (rivalData) {
-                            remotePlayer.active = true;
-                            remotePlayer.targetX = rivalData.targetX * canvas.width;
-                            remotePlayer.isJumping = rivalData.isJumping;
-                            remotePlayer.scale = rivalData.isJumping ? 1.45 : 1;
-                            remotePlayer.score = Math.floor(rivalData.score || 0);
-                            remoteScoreDisplay.innerText = remotePlayer.score;
-
-                            if (remotePlayer.score >= TARGET_SCORE && isPlaying) {
-                                endGame(false, "rival_win");
-                            }
-                        }
+                    if (hasStartedGame && data[remotePlayerKey]) {
+                        syncRemoteData(data[remotePlayerKey]);
                     }
                 });
 
             } catch (e) {
-                showError("No s'ha pogut connectar a la sala.");
+                showError("No s'ha pogut crear la sala.");
                 console.error(e);
+            }
+        }
+
+        async function joinRoom(roomId) {
+            if (!user) { showError("Error d'autenticació"); return; }
+            cleanMultiplayer();
+
+            const roomRef = doc(db, 'rooms', roomId);
+            currentRoomId = roomId;
+
+            try {
+                const snap = await getDoc(roomRef);
+                if (!snap.exists()) {
+                    showError("Aquesta sala no existeix!");
+                    return;
+                }
+
+                const data = snap.data();
+                if (data.p2) {
+                    showError("Aquesta sala ja està plena!");
+                    return;
+                }
+
+                myPlayerKey = 'p2'; remotePlayerKey = 'p1';
+                await updateDoc(roomRef, {
+                    p2: { targetX: 0.5, score: 0, isJumping: false },
+                    status: 'playing'
+                });
+
+                unsubscribeSnapshot = onSnapshot(roomRef, (docSnap) => {
+                    if (!docSnap.exists()) return;
+                    const currentData = docSnap.data();
+
+                    if (!hasStartedGame && currentData.status === 'playing') {
+                        hasStartedGame = true;
+                        startMultiplayerGame(roomId, roomRef);
+                    }
+
+                    if (hasStartedGame && currentData[remotePlayerKey]) {
+                        syncRemoteData(currentData[remotePlayerKey]);
+                    }
+                });
+
+            } catch (e) {
+                showError("No s'ha pogut accedir a la sala.");
+                console.error(e);
+            }
+        }
+
+        function syncRemoteData(rivalData) {
+            remotePlayer.active = true;
+            remotePlayer.targetX = rivalData.targetX * canvas.width;
+            remotePlayer.isJumping = rivalData.isJumping;
+            remotePlayer.scale = rivalData.isJumping ? 1.45 : 1;
+            remotePlayer.score = Math.floor(rivalData.score || 0);
+            remoteScoreDisplay.innerText = remotePlayer.score;
+
+            if (remotePlayer.score >= TARGET_SCORE && isPlaying) {
+                endGame(false, "rival_win");
             }
         }
 
@@ -609,6 +660,19 @@
             }
         });
 
+        btnCreateRoom.addEventListener('click', () => {
+            createRoom();
+        });
+
+        btnJoin.addEventListener('click', () => {
+            const roomCode = roomInput.value.trim().toUpperCase();
+            if (roomCode.length >= 2) {
+                joinRoom(roomCode);
+            } else {
+                showError("Introdueix el codi de la sala.");
+            }
+        });
+
         btnBack.addEventListener('click', () => {
             roomSelection.classList.add('hidden');
             modeSelection.classList.remove('hidden');
@@ -618,15 +682,6 @@
             cleanMultiplayer();
             waitingRoom.classList.add('hidden');
             roomSelection.classList.remove('hidden');
-        });
-
-        btnJoin.addEventListener('click', () => {
-            const roomCode = roomInput.value.trim().toUpperCase();
-            if (roomCode.length >= 2) {
-                joinRoom(roomCode);
-            } else {
-                showError("Introdueix almenys 2 caràcters per a la sala.");
-            }
         });
 
         window.onload = initAI;
