@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Esquí amb Webcam - Cursa Multijugador</title>
+    <title>Esquí amb Webcam - Realtime Database</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/ml5@0.12.2/dist/ml5.min.js" type="text/javascript"></script>
     
@@ -19,13 +19,13 @@
 
     <canvas id="gameCanvas"></canvas>
 
-    <!-- UI In-Game -->
+    <!-- Marcador i càmera durant la partida -->
     <div id="ui-layer" class="absolute top-0 left-0 w-full h-full pointer-events-none flex flex-col justify-between p-6 z-10 hidden">
         <div class="flex justify-between items-start">
             <div class="glass-panel rounded-2xl p-4 pointer-events-auto">
                 <h1 class="text-3xl font-black text-blue-600 flex items-center gap-2">⛷️ NEU-IA</h1>
                 <p class="text-sm text-gray-600 font-medium mt-1">Sala: <span id="room-display" class="font-bold text-blue-500">Local</span></p>
-                <div id="target-goal-banner" class="text-xs font-bold text-purple-600 mt-1 hidden">Meta de cursa: 3.000m</div>
+                <div id="target-goal-banner" class="text-xs font-bold text-purple-600 mt-1 hidden">Objectiu de cursa: 3.000m</div>
             </div>
             
             <div class="flex gap-4">
@@ -40,7 +40,6 @@
             </div>
         </div>
 
-        <!-- Previsualització de la Càmera -->
         <div class="glass-panel p-3 rounded-2xl w-60 pointer-events-auto self-start relative">
             <p class="text-xs font-bold text-center text-gray-500 mb-2">Càmera (Tu)</p>
             <div id="webcam-container" class="rounded-xl overflow-hidden bg-black aspect-video relative shadow-inner">
@@ -50,7 +49,7 @@
         </div>
     </div>
 
-    <!-- Menú Principal i Sales -->
+    <!-- Menú principal i gestió de sales -->
     <div id="menu-overlay" class="absolute top-0 left-0 w-full h-full bg-slate-900/80 backdrop-blur-md flex items-center justify-center z-50">
         <div class="bg-white p-8 md:p-10 rounded-3xl shadow-2xl text-center max-w-lg w-full mx-4 relative overflow-hidden">
             <div id="error-msg" class="absolute top-0 left-0 w-full bg-red-500 text-white text-xs font-bold py-2 hidden"></div>
@@ -58,7 +57,6 @@
             <h2 class="text-4xl md:text-5xl font-black text-blue-600 mb-2">Esquí amb IA</h2>
             <p id="statusMsg" class="text-sm text-blue-500 font-bold animate-pulse mb-6">Carregant Intel·ligència Artificial...</p>
             
-            <!-- Selecció de Mode -->
             <div id="mode-selection" class="space-y-4 opacity-50 pointer-events-none transition-opacity duration-300">
                 <button id="btn-singleplayer" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold py-4 px-6 rounded-2xl transition-all text-lg border-2 border-slate-200 text-left flex justify-between items-center">
                     <span>👤 Un Jugador</span>
@@ -70,7 +68,6 @@
                 </button>
             </div>
 
-            <!-- Opcions Multijugador: Crear o Unir-se -->
             <div id="room-selection" class="hidden space-y-4 mt-2">
                 <button id="btn-create-room" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 px-6 rounded-xl shadow-lg transition-all text-lg flex items-center justify-center gap-2">
                     ➕ Crear Sala Nova
@@ -78,7 +75,7 @@
 
                 <div class="relative flex py-2 items-center">
                     <div class="flex-grow border-t border-slate-200"></div>
-                    <span class="flex-shrink mx-4 text-xs uppercase font-bold text-slate-400">o uneix-te a una</span>
+                    <span class="flex-shrink mx-4 text-xs uppercase font-bold text-slate-400">o entra a una existent</span>
                     <div class="flex-grow border-t border-slate-200"></div>
                 </div>
 
@@ -92,7 +89,6 @@
                 <button id="btn-back" class="text-slate-400 font-bold mt-2 hover:text-slate-600 block w-full text-sm">← Tornar al menú</button>
             </div>
 
-            <!-- Sala d'espera per a l'amfitrió -->
             <div id="waiting-room" class="hidden space-y-6 py-4">
                 <div class="animate-spin text-5xl">⏳</div>
                 <h3 class="text-2xl font-black text-slate-800">Esperant al Rival...</h3>
@@ -100,21 +96,22 @@
                     <p class="text-xs uppercase tracking-wider text-blue-600 font-bold mb-1">Codi de la teva sala</p>
                     <span id="waiting-room-code" class="text-3xl font-black text-blue-700 tracking-widest font-mono"></span>
                 </div>
-                <p class="text-xs text-slate-500">Passa aquest codi al teu amic. La cursa s'iniciarà automàticament quan entri.</p>
+                <p class="text-xs text-slate-500">Comparteix aquest codi. La cursa començarà tan bon punt el teu rival s'hi connecti.</p>
                 <button id="btn-cancel-wait" class="text-red-500 font-bold hover:text-red-700 text-sm">Cancel·lar i sortir</button>
             </div>
         </div>
     </div>
 
-    <!-- Mòdul Firebase i Lògica del Joc -->
+    <!-- Firebase Realtime Database SDK (Modular v11.6.1) -->
     <script type="module">
         import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getDatabase, ref, set, get, update, onValue, off } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyCA9HS1dDN4AU2fE87l3bnr-OkYvWSKdcs",
             authDomain: "joc-esqui.firebaseapp.com",
+            databaseURL: "https://joc-esqui-default-rtdb.europe-west1.firebasedatabase.app/",
             projectId: "joc-esqui",
             storageBucket: "joc-esqui.firebasestorage.app",
             messagingSenderId: "478484027502",
@@ -152,10 +149,10 @@
         let app = null, db = null, auth = null, user = null;
         let isMultiplayer = false;
         let currentRoomId = null;
+        let activeRoomRef = null;
         let myPlayerKey = null; 
         let remotePlayerKey = null;
         let syncInterval = null;
-        let unsubscribeSnapshot = null;
         let isPushingData = false;
         let hasStartedGame = false;
         const TARGET_SCORE = 3000;
@@ -216,7 +213,7 @@
                     app = initializeApp(firebaseConfig);
                 }
                 if (!auth) auth = getAuth(app);
-                if (!db) db = getFirestore(app);
+                if (!db) db = getDatabase(app);
                 if (!user) {
                     const cred = await signInAnonymously(auth);
                     user = cred.user;
@@ -319,27 +316,22 @@
                 ctx.shadowOffsetY = 15;
             }
 
-            // Esquís
             ctx.strokeStyle = playerObj.isJumping ? '#0284c7' : '#1e293b';
             ctx.lineWidth = 5;
             ctx.lineCap = 'round';
             ctx.beginPath(); ctx.moveTo(-14, -30); ctx.lineTo(-14, 30); ctx.stroke();
             ctx.beginPath(); ctx.moveTo(14, -30); ctx.lineTo(14, 30); ctx.stroke();
 
-            // Braços
             ctx.strokeStyle = playerObj.colorArms;
             ctx.lineWidth = 7;
             ctx.beginPath(); ctx.moveTo(-22, 5); ctx.lineTo(22, 5); ctx.stroke();
 
-            // Cos
             ctx.fillStyle = playerObj.colorBase;
             ctx.beginPath(); ctx.ellipse(0, 0, 16, 22, 0, 0, Math.PI * 2); ctx.fill();
 
-            // Cap
             ctx.fillStyle = '#f8fafc';
             ctx.beginPath(); ctx.arc(0, -12, 12, 0, Math.PI * 2); ctx.fill();
             
-            // Ulleres
             ctx.fillStyle = '#f97316';
             ctx.beginPath(); ctx.roundRect(-7, -18, 14, 7, 3); ctx.fill();
             
@@ -495,12 +487,12 @@
             cleanMultiplayer();
 
             const roomId = "SALA" + Math.floor(100 + Math.random() * 900);
-            const roomRef = doc(db, 'rooms', roomId);
+            activeRoomRef = ref(db, 'rooms/' + roomId);
             currentRoomId = roomId;
 
             try {
                 myPlayerKey = 'p1'; remotePlayerKey = 'p2';
-                await setDoc(roomRef, {
+                await set(activeRoomRef, {
                     p1: { targetX: 0.5, score: 0, isJumping: false },
                     p2: null,
                     status: 'waiting',
@@ -511,13 +503,13 @@
                 waitingRoom.classList.remove('hidden');
                 waitingRoomCode.innerText = roomId;
 
-                unsubscribeSnapshot = onSnapshot(roomRef, (docSnap) => {
-                    if (!docSnap.exists()) return;
-                    const data = docSnap.data();
+                onValue(activeRoomRef, (snapshot) => {
+                    const data = snapshot.val();
+                    if (!data) return;
 
                     if (!hasStartedGame && data.p1 && data.p2 && data.status === 'playing') {
                         hasStartedGame = true;
-                        startMultiplayerGame(roomId, roomRef);
+                        startMultiplayerGame(roomId);
                     }
 
                     if (hasStartedGame && data[remotePlayerKey]) {
@@ -526,7 +518,7 @@
                 });
 
             } catch (e) {
-                showError("No s'ha pogut crear la sala.");
+                showError("No s'ha pogut crear la sala: " + (e.code || e.message));
                 console.error(e);
             }
         }
@@ -535,35 +527,35 @@
             if (!user) { showError("Error d'autenticació"); return; }
             cleanMultiplayer();
 
-            const roomRef = doc(db, 'rooms', roomId);
+            activeRoomRef = ref(db, 'rooms/' + roomId);
             currentRoomId = roomId;
 
             try {
-                const snap = await getDoc(roomRef);
-                if (!snap.exists()) {
+                const snapshot = await get(activeRoomRef);
+                if (!snapshot.exists()) {
                     showError("Aquesta sala no existeix!");
                     return;
                 }
 
-                const data = snap.data();
+                const data = snapshot.val();
                 if (data.p2) {
                     showError("Aquesta sala ja està plena!");
                     return;
                 }
 
                 myPlayerKey = 'p2'; remotePlayerKey = 'p1';
-                await updateDoc(roomRef, {
+                await update(activeRoomRef, {
                     p2: { targetX: 0.5, score: 0, isJumping: false },
                     status: 'playing'
                 });
 
-                unsubscribeSnapshot = onSnapshot(roomRef, (docSnap) => {
-                    if (!docSnap.exists()) return;
-                    const currentData = docSnap.data();
+                onValue(activeRoomRef, (snap) => {
+                    const currentData = snap.val();
+                    if (!currentData) return;
 
                     if (!hasStartedGame && currentData.status === 'playing') {
                         hasStartedGame = true;
-                        startMultiplayerGame(roomId, roomRef);
+                        startMultiplayerGame(roomId);
                     }
 
                     if (hasStartedGame && currentData[remotePlayerKey]) {
@@ -572,7 +564,7 @@
                 });
 
             } catch (e) {
-                showError("No s'ha pogut accedir a la sala.");
+                showError("No s'ha pogut accedir a la sala: " + (e.code || e.message));
                 console.error(e);
             }
         }
@@ -590,7 +582,7 @@
             }
         }
 
-        function startMultiplayerGame(roomId, roomRef) {
+        function startMultiplayerGame(roomId) {
             roomDisplay.innerText = roomId;
             remoteScorePanel.classList.remove('hidden');
             targetGoalBanner.classList.remove('hidden');
@@ -598,19 +590,20 @@
 
             if (syncInterval) clearInterval(syncInterval);
             syncInterval = setInterval(async () => {
-                if (!isPlaying || isPushingData) return;
+                if (!isPlaying || isPushingData || !activeRoomRef) return;
                 isPushingData = true;
                 try {
-                    await updateDoc(roomRef, {
-                        [`${myPlayerKey}.targetX`]: localPlayer.targetX / canvas.width,
-                        [`${myPlayerKey}.score`]: score,
-                        [`${myPlayerKey}.isJumping`]: localPlayer.isJumping
+                    const playerRef = ref(db, `rooms/${currentRoomId}/${myPlayerKey}`);
+                    await update(playerRef, {
+                        targetX: localPlayer.targetX / canvas.width,
+                        score: score,
+                        isJumping: localPlayer.isJumping
                     });
                 } catch(e) {}
                 finally {
                     isPushingData = false;
                 }
-            }, 100);
+            }, 80);
 
             startGame(true);
         }
@@ -618,7 +611,7 @@
         function cleanMultiplayer() {
             hasStartedGame = false;
             if (syncInterval) { clearInterval(syncInterval); syncInterval = null; }
-            if (unsubscribeSnapshot) { unsubscribeSnapshot(); unsubscribeSnapshot = null; }
+            if (activeRoomRef) { off(activeRoomRef); activeRoomRef = null; }
             isMultiplayer = false;
             remotePlayer.active = false;
             isPushingData = false;
